@@ -1,6 +1,6 @@
 # Simulasi Astronomi 3D (Python + Pygame + PyOpenGL)
 
-Simulasi desktop sederhana: **Matahari + 8 planet** dengan orbit visual dan **garis lintasan orbit**, **kamera free-roam** (WASD + mouse look), **zoom** lewat scroll (mengubah FOV), serta HUD ringkas (kontrol + FPS).
+Simulasi desktop: **Matahari + planet + tekstur (atau pola procedural)** dan **nama di atas tiap benda**, **Bulan** orbit Bumi, **sabuk asteroid**, **meteor** serta **objek metalik asing**, plus garis lintasan orbit planet, **kamera free-roam**, dan zoom FOV melalui scroll.
 
 > Skala jarak/kecepatan **bukan** model astronomi nyata—fokus pada visualisasi dan interaktivitas untuk tugas grafika komputer.
 
@@ -8,7 +8,7 @@ Simulasi desktop sederhana: **Matahari + 8 planet** dengan orbit visual dan **ga
 
 - Python **3.11 atau 3.12** sangat disarankan (biasanya ada **wheel** `pygame` siap pakai). Di **Python 3.14** sering belum ada wheel sehingga `pip` memaksa **kompilasi dari source** dan butuh header SDL/Freetype di sistem.
 - GPU/driver OpenGL yang mendukung **fixed-function pipeline** (kompatibilitas OpenGL 1.x–2.1)
-- Dependensi Python: lihat [`requirements.txt`](requirements.txt)
+- Dependensi Python: lihat [`requirements.txt`](requirements.txt) (termasuk **Pillow** untuk tekstur permukaan opsional).
 
 ## Troubleshooting: `pip install pygame` gagal / `ModuleNotFoundError: pygame`
 
@@ -61,15 +61,36 @@ Pastikan perintah dijalankan di lingkungan yang punya windowing (DISPLAY/X11/Way
 
 Ukuran jendela dapat diubah (mode **resize**).
 
+## Aset tekstur (opsional)
+
+Letakkan gambar di folder `assets/textures/` (relatif ke root proyek). Jika berkas tidak ada, program memakai **tekstur procedural** otomatis berdasarkan warna dasar planet.
+
+Nama berkas yang dikenali (ekstensi `.jpg` atau `.png`; contoh memakai JPG):
+
+| Kunci | Nama berkas disarankan |
+|--------|-------------------------|
+| Matahari | `sun.jpg` |
+| Merkurius … Neptunus | `mercury.jpg` … `neptune.jpg` (lihat konstanta pada `src/rendering/textures.py`) |
+| Bulan | `moon.jpg` |
+
+## Performa (`src/core/config.py`)
+
+- `USE_PLANET_TEXTURES` — matikan untuk mesin lemah (kembali warna solid pada bola).
+- `USE_LABELS` — matikan nama 3D billboard.
+- `ASTEROID_COUNT`, `METEOR_COUNT` — kurangi jumlah partikel jika FPS turun.
+
 ## Struktur modul
 
 - `main.py` — entry point.
-- `src/core/config.py` — konstanta (kecepatan, FOV, jendela).
-- `src/core/app.py` — game loop dan HUD overlay.
+- `src/core/config.py` — konstanta (kecepatan, FOV, jumlah asteroid/meteor, toggle tekstur & label).
+- `src/core/app.py` — game loop, update simulasi lengkap, HUD overlay.
 - `src/camera/free_roam_camera.py` — matematika kamera.
 - `src/input/input_handler.py` — event keyboard, mouse relatif, wheel, resize.
-- `src/simulation/solar_system.py` — data orbit planet.
-- `src/rendering/` — setup OpenGL, pencahayaan, mesh bola (GLU), garis orbit, frame drawing.
+- `src/simulation/solar_system.py` — Matahari, planet, bulan.
+- `src/simulation/asteroid_belt.py` — sabuk asteroid.
+- `src/simulation/meteors.py` — meteor.
+- `src/simulation/exotic_visitors.py` — objek asing berkilau.
+- `src/rendering/` — `renderer.py`, `textures.py`, `labels.py`, `asteroid_mesh.py`, `primitives.py`, `lighting.py`.
 
 ## Batasan
 

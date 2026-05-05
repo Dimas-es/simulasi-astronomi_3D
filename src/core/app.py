@@ -46,6 +46,9 @@ from src.camera.free_roam_camera import FreeRoamCamera
 from src.core import config
 from src.input.input_handler import InputHandler
 from src.rendering.renderer import Renderer
+from src.simulation.asteroid_belt import AsteroidField
+from src.simulation.exotic_visitors import ExoticFleet
+from src.simulation.meteors import MeteorSwarm
 from src.simulation.solar_system import SolarSystem
 
 
@@ -152,9 +155,17 @@ def run_app() -> None:
     clock = pygame.time.Clock()
     camera = FreeRoamCamera.create_default()
     solar = SolarSystem.default_solar_system()
+    asteroid_field = AsteroidField(seed=2026)
+    meteor_swarm = MeteorSwarm(seed=904)
+    exotic_fleet = ExoticFleet()
     inputs = InputHandler(mouse_grabbed=True, video_flags=flags)
     renderer = Renderer()
-    renderer.init_gl()
+
+    pygame.font.init()
+    label_font = pygame.font.SysFont("dejavusans", config.LABEL_FONT_PT, bold=True)
+
+    renderer.init_gl(label_font)
+    renderer.preload_textures(solar)
 
     hud_font = pygame.font.Font(None, 22)
     hud_texture: list[int] = []
@@ -171,12 +182,15 @@ def run_app() -> None:
             running = inputs.process_events()
             inputs.apply_to_camera(camera, dt)
             solar.update(dt)
+            asteroid_field.update(dt)
+            meteor_swarm.update(dt)
+            exotic_fleet.update(dt)
 
             w, h = pygame.display.get_surface().get_size()
             renderer.resize(w, h)
 
             renderer.frame_begin(camera)
-            renderer.draw_scene(solar)
+            renderer.draw_scene(camera, solar, asteroid_field, meteor_swarm, exotic_fleet)
 
             hud_lines = [
                 "Simulasi Astronomi 3D — kontrol",

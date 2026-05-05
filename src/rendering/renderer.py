@@ -1,4 +1,4 @@
-"""Pipeline rendering OpenGL fixed-function: proyeksi, kamera, adegan lengkap."""
+"""Pipeline rendering OpenGL fixed-function: perspektif, kamera look-at, adegan 3D."""
 
 from __future__ import annotations
 
@@ -79,6 +79,13 @@ from src.simulation.meteors import MeteorSwarm
 
 
 class Renderer:
+    """Gambar adegan per frame (urutan draw_scene).
+
+    Matahari (inti + halo), garis orbit, planet/satellit dengan axial tilt dan spin,
+    cincin Saturnus, asteroid, meteor, benda asing, lalu billboard nama. Tekstur
+    permukaan bola memakai GL_MODULATE sampai HUD 2D mengganti mode di app.
+    """
+
     def __init__(self, width: int | None = None, height: int | None = None) -> None:
         self._width = width if width is not None else config.WINDOW_WIDTH
         self._height = height if height is not None else config.WINDOW_HEIGHT
@@ -206,8 +213,11 @@ class Renderer:
         glPopMatrix()
 
     def _draw_saturn_ring_bands(self, body: ss.OrbitingBody) -> None:
-        """Dipanggil dalam matriks: translate orbit; sudah axial tilt × spin aksial."""
+        """Gelang planar di XZ, diskalakan body_radius; alpha + blend setelah bola.
 
+        Dipanggil dalam matriks dunia: translate orbit; sudah rotasi axial tilt
+        dan spin planet. Memakai polygon offset agar tidak bersaing z dengan bola.
+        """
         bands = getattr(config, "SATURN_RING_BANDS", ())
         offsets = getattr(config, "SATURN_RING_POLYGON_OFFSET", (-1.2, -3.5))
         if (

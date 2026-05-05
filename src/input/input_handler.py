@@ -26,7 +26,11 @@ class InputState:
 
 @dataclass
 class InputHandler:
-    """Kumpulkan event keyboard/mouse per frame."""
+    """Kumpulkan event keyboard dan mouse tiap frame.
+
+    Roda mouse: scroll ke atas menambah `scroll_steps` positif dan memperkecil FOV di
+    `FreeRoamCamera.apply_zoom_wheel` (zoom masuk).
+    """
 
     mouse_grabbed: bool = True
     video_flags: int = 0
@@ -44,7 +48,6 @@ class InputHandler:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 return False
             if event.type == pygame.MOUSEWHEEL:
-                # Scroll ke atas → zoom in → FOV diperkecil.
                 self._state.scroll_steps += event.y
             if event.type == pygame.VIDEORESIZE and self.video_flags:
                 w, h = event.w, event.h

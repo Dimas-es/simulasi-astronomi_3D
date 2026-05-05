@@ -1,4 +1,9 @@
-"""Game loop, inisialisasi Pygame + OpenGL, dan overlay HUD."""
+"""Game loop, inisialisasi Pygame + OpenGL, dan overlay HUD 2D.
+
+Satu frame tipikal: ukuran buffer (_display_pixels) -> Renderer.resize ->
+frame_begin (clear + proyeksi perspektif + look-at) -> draw_scene (fixed GL) ->
+_draw_hud_overlay (ortho layar + tekstur panel) -> flip.
+"""
 
 from __future__ import annotations
 
@@ -116,7 +121,16 @@ def _draw_hud_overlay(
     lines: list[str],
     texture_holder: list[int],
 ) -> None:
-    """Gambar panel teks di pojok kiri atas dengan blending alpha."""
+    """Panel teks alpha di pojok kiri atas (ruang layar).
+
+    Setelah draw_scene, tekstur dunia memakai GL_MODULATE; untuk HUD pakai
+    GL_REPLACE dan glColor putih agar panel tidak ter-teint warna/material
+    objek terakhir.
+
+    glViewport diselaraskan dengan buffer; glOrtho(0, lebar, tinggi, 0)
+    memetakan y ke bawah seperti Pygame. UV pada quad menyamakan baris atas
+    sumber (tobytes flip) dengan pojok atas layar.
+    """
     line_h = font.get_linesize()
     pad = 8
     max_w = 0
@@ -157,7 +171,6 @@ def _draw_hud_overlay(
     glDisable(GL_LIGHTING)
     glDisable(GL_COLOR_MATERIAL)
 
-    # draw_scene memakai GL_MODULATE; tanpa REPLACE + warna putih HUD jadi kusam / seolah «terpotong».
     glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE)
     glColor4f(1.0, 1.0, 1.0, 1.0)
 
@@ -176,8 +189,6 @@ def _draw_hud_overlay(
     x0, y0 = margin, margin
     x1, y1 = x0 + float(w), y0 + float(h)
 
-    # Koordinat tekstur: v=0 dasar, v=1 atas (OpenGL). Pojok kiri atas layar memakai v=1
-    # agar baris pertama Pygame (atas) tidak tampil terbalik.
     glBegin(GL_QUADS)
     glTexCoord2f(0.0, 1.0)
     glVertex2f(x0, y0)

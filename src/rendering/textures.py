@@ -1,4 +1,10 @@
-"""Muat tekstur permukaan bola (file atau fallback procedural)."""
+"""Tekstur permukaan bola: muat JPG dari disk atau pola procedural per kunci.
+
+Urutan byte RGBA untuk glTexImage2D menyebut baris pertama sebagai baris bawah
+tekstur (sisi +v pada bola GLU biasanya naik dari ekuator). File dari Pillow
+dibalik vertikal agar selaras. `procedural_rgba_bytes` adalah alias generik
+yang mendelegasi ke `procedural_rgba_for_key`.
+"""
 
 from __future__ import annotations
 
@@ -53,7 +59,7 @@ FILENAME_BY_KEY: dict[str, str] = {
 
 
 def _pseudo_noise(x: int, y: int, seed: int) -> float:
-    """Noise deterministik; operand di-mask 32-bit agar struct.pack tidak overflow."""
+    """Hash deterministik [0,1); masukan di-mask 32-bit agar `struct.pack` tidak overflow."""
     a = (x * 374761393 + seed * 7919) & 0xFFFFFFFF
     b = (y * 668265263 + seed * 1337) & 0xFFFFFFFF
     c = (((x ^ (y << 16)) ^ (seed << 8)) & 0xFFFFFFFF) ^ 0x9E3779B9
@@ -67,7 +73,7 @@ def procedural_rgba_bytes(
     proc_seed: int,
     size: int,
 ) -> bytes:
-    """RGBA generik (kompatibel lama)."""
+    """Lihat `procedural_rgba_for_key` dengan kunci `generic`."""
     return procedural_rgba_for_key("generic", base_rgb, proc_seed, size)
 
 
@@ -77,7 +83,7 @@ def procedural_rgba_for_key(
     proc_seed: int,
     size: int,
 ) -> bytes:
-    """Pola procedural per kunci tekstur; baris pertama = bawah tekstur OpenGL."""
+    """Piksel procedural per `texture_key`; baris buffer row=0 ialah baris bawah tekstur GL."""
     bs = proc_seed + 7919
     denom = float(max(size - 1, 1))
     key = texture_key.lower()
@@ -279,7 +285,12 @@ class TextureAtlas:
         self._tex: dict[str, int] = {}
 
     def preload_key(self, key: str, base_rgb: tuple[float, float, float]) -> int:
-        """Ambil atau buat tekstur untuk given key."""
+        """Cache tekstur OpenGL per `key` (lowercase).
+
+        Jika file di `ASSETS_TEXTURES_SUBDIR` ada, dipakai (dibatasi lebar/tinggi
+        `TEXTURE_MAX_EDGE`). Tanpa file, bangun persegi procedural dengan sisi
+        `max(128, min(384, TEXTURE_MAX_EDGE*3//4))` lalu unggah dengan mipmap.
+        """
         k = key.lower()
         if k in self._tex:
             return self._tex[k]

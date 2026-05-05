@@ -18,16 +18,24 @@ SUN_TEXTURE_KEY = "sun"
 
 @dataclass
 class OrbitingBody:
+    """Planet atau benda orbit utama.
+
+    `tilt`: variasi radial kecil (getaran lintasan), bukan kemiringan sumbu.
+    `axial_tilt_deg`: kemiringan sumbu tampilan; diterapkan sebagai rotasi di sekitar
+    `+X` sebelum spin permukaan. `orbit_speed` dan `spin_speed` dalam radian per detik
+    dunia (orbit juga diskalakan `ORBIT_TIME_SCALE` di `update`).
+    """
+
     name: str
     orbit_radius: float
-    orbit_speed: float  # radian per detik (skala visual)
+    orbit_speed: float
     body_radius: float
     rgb: tuple[float, float, float]
     texture_key: str
     orbit_angle: float = 0.0
-    tilt: float = 0.0  # radian — getaran orbit kecil (bukan kemiringan sumbu)
-    axial_tilt_deg: float = 0.0  # kemiringan sumbu visual (putar sekitar +X sebelum spin)
-    spin_speed: float = 0.3  # radian per detik dunia (permukaan berputar)
+    tilt: float = 0.0
+    axial_tilt_deg: float = 0.0
+    spin_speed: float = 0.3
     spin_angle: float = 0.0
 
 

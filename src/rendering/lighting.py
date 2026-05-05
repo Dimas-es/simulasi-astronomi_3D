@@ -25,7 +25,11 @@ from OpenGL.GL import (
 
 
 def configure_lighting() -> None:
-    """Aktifkan satu sumber cahaya (Matahari) + ambient model lembut."""
+    """Aktifkan GL_LIGHT0 + ambient model.
+
+    Arah cahaya memakai koordinat homogen w=0 (directional), sehingga tetap
+    konsisten di ruang dunia saat matriks MODELVIEW mengikuti kamera.
+    """
     glEnable(GL_LIGHTING)
     glEnable(GL_LIGHT0)
     glEnable(GL_COLOR_MATERIAL)
@@ -35,8 +39,6 @@ def configure_lighting() -> None:
     glLightModelfv(GL_LIGHT_MODEL_AMBIENT, ambient)
     glLightModelf(GL_LIGHT_MODEL_LOCAL_VIEWER, 1.0)
 
-    # Cahaya directional (w=0) — stabil di ruang dunia saat MODELVIEW=kamera,
-    # hanya mempengaruhi rotasi pandangan tanpa glitch posisi seperti point di origin.
     sun_dir = [0.85, 0.35, 0.42, 0.0]
     glLightfv(GL_LIGHT0, GL_POSITION, sun_dir)
     glLightfv(GL_LIGHT0, GL_AMBIENT, [0.0, 0.0, 0.0, 1.0])

@@ -1,4 +1,4 @@
-"""Label nama dunia: font Pygame ke tekstur + quad billboard menghadap kamera."""
+"""Label nama benda: raster font Pygame ke tekstur, lalu quad billboard ke kamera."""
 
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ def _gen_tex_int() -> int:
 
 
 def _rgba_png_bytes(surface: pygame.Surface, *, flip_for_gl_bottom_first: bool) -> tuple[int, int, bytes]:
-    """Keluaran RGBA + lebar tinggi untuk glTexImage2D."""
+    """RGBA untuk glTexImage2D; flip=True menyelaraskan baris Pygame (atas) ke konvensi GL."""
     w, h = surface.get_size()
     try:
         raw = pygame.image.tobytes(surface, "RGBA", flip_for_gl_bottom_first)
@@ -65,7 +65,7 @@ def _rgba_png_bytes(surface: pygame.Surface, *, flip_for_gl_bottom_first: bool) 
 
 
 class LabelAtlas:
-    """Cache satu tekstur OpenGL per teks."""
+    """Satu tekstur OpenGL per string label; ukuran dunia dari LABEL_WORLD_PER_TEX_PX."""
 
     def __init__(self, font: pygame.font.Font) -> None:
         self._font = font
@@ -73,6 +73,7 @@ class LabelAtlas:
         self._dims: dict[str, tuple[float, float]] = {}
 
     def ensure(self, text: str) -> None:
+        """Bangun tekstur jika belum ada; upload dengan flip baris untuk t memanjang ke atas."""
         if text in self._ids:
             return
         main = tuple(int(c) for c in config.LABEL_TEXT_FG)
@@ -85,7 +86,6 @@ class LabelAtlas:
         board.fill((0, 0, 0, 0))
         board.blit(fg, (pad_x, pad_y))
 
-        # Baris pertama Pygame = atas gambar; pakai flip agar baris bawah buffer = bawah tekstur GL
         _, _, raw = _rgba_png_bytes(board, flip_for_gl_bottom_first=True)
 
         tex = _gen_tex_int()
@@ -108,7 +108,9 @@ class LabelAtlas:
         cam: FreeRoamCamera,
         world_xyz: tuple[float, float, float],
     ) -> None:
-        """Quad di bidang XY lokal (+Y atas). Normal +Z ke kamera setelah putar Euler."""
+        """Billboard di bidang XY lokal (+Y naik). Euler menghadap kamera; koordinat u dibalik
+        agar teks tidak cermin horizontal setelah yaw+180 derajat.
+        """
         self.ensure(text)
         tex = self._ids[text]
         ww, hh = self._dims[text]
@@ -137,7 +139,6 @@ class LabelAtlas:
         glRotatef(-pitch_deg, 1.0, 0.0, 0.0)
 
         hw, hhh = ww * 0.5, hh * 0.5
-        # u dibalik supaya huruf tidak cermin kiri–kanan (selaras dengan yaw + 180° ke kamera)
         glBegin(GL_QUADS)
         glTexCoord2f(1.0, 1.0)
         glVertex3f(-hw, hhh, 0.0)

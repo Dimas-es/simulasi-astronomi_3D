@@ -19,7 +19,9 @@ from OpenGL.GL import (
     GL_MODELVIEW,
     GL_MODULATE,
     GL_NORMALIZE,
+    GL_ONE,
     GL_ONE_MINUS_SRC_ALPHA,
+    GL_POLYGON_OFFSET_FILL,
     GL_FRONT,
     GL_PROJECTION,
     GL_REPLACE,
@@ -38,6 +40,7 @@ from OpenGL.GL import (
     glColor3f,
     glColor4f,
     glDepthFunc,
+    glDepthMask,
     glDisable,
     glEnable,
     glEnd,
@@ -46,6 +49,7 @@ from OpenGL.GL import (
     glMaterialf,
     glMaterialfv,
     glMatrixMode,
+    glPolygonOffset,
     glPopMatrix,
     glPushMatrix,
     glRotatef,
@@ -62,7 +66,11 @@ from src.core import config
 from src.rendering import lighting
 from src.rendering.asteroid_mesh import build_octa_rock_display_list
 from src.rendering.labels import LabelAtlas
-from src.rendering.primitives import build_sphere_display_list
+from src.rendering.primitives import (
+    build_ring_annulus_display_list,
+    build_sphere_display_list,
+    delete_display_lists,
+)
 from src.rendering.textures import TextureAtlas
 from src.simulation import solar_system as ss
 from src.simulation.asteroid_belt import AsteroidField
@@ -71,11 +79,12 @@ from src.simulation.meteors import MeteorSwarm
 
 
 class Renderer:
-    def __init__(self) -> None:
-        self._width = config.WINDOW_WIDTH
-        self._height = config.WINDOW_HEIGHT
+    def __init__(self, width: int | None = None, height: int | None = None) -> None:
+        self._width = width if width is not None else config.WINDOW_WIDTH
+        self._height = height if height is not None else config.WINDOW_HEIGHT
         self._sphere_list = 0
         self._rock_list = 0
+        self._saturn_ring_lists: list[int] = []
         self._textures: TextureAtlas | None = None
         self._labels: LabelAtlas | None = None
 
@@ -90,6 +99,16 @@ class Renderer:
 
         self._sphere_list = build_sphere_display_list(1.0)
         self._rock_list = build_octa_rock_display_list(jitter=0.14)
+
+        self._saturn_ring_lists = [
+            build_ring_annulus_display_list(
+                rin,
+                rout,
+                config.SATURN_RING_SEGMENT_COUNT,
+            )
+            for (rin, rout, _rgba) in config.SATURN_RING_BANDS
+        ]
+
         self._textures = TextureAtlas() if config.USE_PLANET_TEXTURES else None
         self._labels = LabelAtlas(label_font)
         self.resize(self._width, self._height)
@@ -186,13 +205,57 @@ class Renderer:
         glCallList(self._sphere_list)
         glPopMatrix()
 
-    def _draw_sun_textured(self) -> None:
-        glPushMatrix()
+    def _draw_saturn_ring_bands(self, body: ss.OrbitingBody) -> None:
+        """Dipanggil dalam matriks: translate orbit; sudah axial tilt × spin aksial."""
+
+        bands = getattr(config, "SATURN_RING_BANDS", ())
+        offsets = getattr(config, "SATURN_RING_POLYGON_OFFSET", (-1.2, -3.5))
+        if (
+            body.texture_key.lower() != "saturn"
+            or not self._saturn_ring_lists
+            or len(bands) != len(self._saturn_ring_lists)
+        ):
+            return
+
+        po0, po1 = float(offsets[0]), float(offsets[1])
+
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glPolygonOffset(po0, po1)
+        glEnable(GL_POLYGON_OFFSET_FILL)
+
+        glDisable(GL_TEXTURE_2D)
         glDisable(GL_LIGHTING)
-        if config.USE_PLANET_TEXTURES and self._textures is not None:
+
+        glPushMatrix()
+        br = float(body.body_radius)
+        glScalef(br, br, br)
+        for dlist, (_ri, _ro, rgba) in zip(self._saturn_ring_lists, bands, strict=True):
+            rr, rg, rb, ra = rgba
+            glColor4f(float(rr), float(rg), float(rb), float(ra))
+            glCallList(dlist)
+        glPopMatrix()
+
+        glEnable(GL_LIGHTING)
+
+        glDisable(GL_POLYGON_OFFSET_FILL)
+        glDisable(GL_BLEND)
+        lighting.reset_material_white()
+
+    def _draw_sun_textured(self, system: ss.SolarSystem) -> None:
+        glDisable(GL_LIGHTING)
+
+        spins = math.degrees(float(system.sun_spin_angle))
+        tex_on = config.USE_PLANET_TEXTURES and self._textures is not None
+
+        glPushMatrix()
+        glRotatef(spins, 0.0, 1.0, 0.0)
+        if tex_on:
             glEnable(GL_TEXTURE_2D)
             glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE)
-            tex_id = self._textures.preload_key(ss.SUN_TEXTURE_KEY, tuple(float(x) for x in ss.SUN_RGB))
+            tex_id = self._textures.preload_key(
+                ss.SUN_TEXTURE_KEY, tuple(float(x) for x in ss.SUN_RGB)
+            )
             glBindTexture(GL_TEXTURE_2D, tex_id)
             glColor3f(1.0, 1.0, 1.0)
         else:
@@ -203,6 +266,35 @@ class Renderer:
         glCallList(self._sphere_list)
         glDisable(GL_TEXTURE_2D)
         glPopMatrix()
+
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE)
+        glDepthMask(False)
+        for i, scl in enumerate(config.SUN_HALO_LAYER_SCALES):
+            alp = (
+                float(config.SUN_HALO_LAYER_ALPHAS[i])
+                if i < len(config.SUN_HALO_LAYER_ALPHAS)
+                else 0.2
+            )
+            rgbs = (
+                config.SUN_HALO_LAYER_RGB[i]
+                if i < len(config.SUN_HALO_LAYER_RGB)
+                else (1.0, 0.7, 0.35)
+            )
+            r0, g0, b0 = float(rgbs[0]), float(rgbs[1]), float(rgbs[2])
+            hs = rs * float(scl)
+            glPushMatrix()
+            glRotatef(spins, 0.0, 1.0, 0.0)
+            glColor4f(r0, g0, b0, alp)
+            glScalef(hs, hs, hs)
+            glCallList(self._sphere_list)
+            glPopMatrix()
+
+        glDepthMask(True)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glDisable(GL_BLEND)
+
+        glEnable(GL_LIGHTING)
 
     def _draw_visitors(self, fleet: ExoticFleet | None) -> None:
         if fleet is None:
@@ -300,7 +392,7 @@ class Renderer:
 
         glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE)
 
-        self._draw_sun_textured()
+        self._draw_sun_textured(system)
 
         self._draw_orbit_rings(system)
 
@@ -316,14 +408,23 @@ class Renderer:
             pos = system.world_position(body)
             glPushMatrix()
             glTranslatef(float(pos[0]), float(pos[1]), float(pos[2]))
+            glRotatef(float(body.axial_tilt_deg), 1.0, 0.0, 0.0)
+            glRotatef(math.degrees(float(body.spin_angle)), 0.0, 1.0, 0.0)
+            lighting.apply_planet_material(body.texture_key)
             self._draw_textured_sphere(body.rgb, body.texture_key, body.body_radius, textured)
+            lighting.reset_material_white()
+            self._draw_saturn_ring_bands(body)
             glPopMatrix()
 
         for sat in system.satellites:
             ps = system.world_position_satellite(sat)
             glPushMatrix()
             glTranslatef(float(ps[0]), float(ps[1]), float(ps[2]))
+            glRotatef(float(sat.axial_tilt_deg), 1.0, 0.0, 0.0)
+            glRotatef(math.degrees(float(sat.spin_angle)), 0.0, 1.0, 0.0)
+            lighting.apply_planet_material(sat.texture_key)
             self._draw_textured_sphere(sat.rgb, sat.texture_key, sat.body_radius, textured)
+            lighting.reset_material_white()
             glPopMatrix()
 
         glDisable(GL_TEXTURE_2D)
@@ -361,6 +462,10 @@ class Renderer:
         if self._labels is not None:
             self._labels.dispose()
             self._labels = None
+
+        if self._saturn_ring_lists:
+            delete_display_lists(self._saturn_ring_lists)
+            self._saturn_ring_lists.clear()
 
         if self._sphere_list:
             glDeleteLists(self._sphere_list, 1)

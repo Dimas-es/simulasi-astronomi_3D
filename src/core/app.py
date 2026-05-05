@@ -8,6 +8,7 @@ import pygame
 from OpenGL.GL import (
     GL_BLEND,
     GL_CLAMP_TO_EDGE,
+    GL_COLOR_MATERIAL,
     GL_DEPTH_TEST,
     GL_LINEAR,
     GL_LIGHTING,
@@ -15,9 +16,12 @@ from OpenGL.GL import (
     GL_ONE_MINUS_SRC_ALPHA,
     GL_PROJECTION,
     GL_QUADS,
+    GL_REPLACE,
     GL_RGBA,
     GL_SRC_ALPHA,
     GL_TEXTURE_2D,
+    GL_TEXTURE_ENV,
+    GL_TEXTURE_ENV_MODE,
     GL_TEXTURE_MAG_FILTER,
     GL_TEXTURE_MIN_FILTER,
     GL_TEXTURE_WRAP_S,
@@ -26,6 +30,7 @@ from OpenGL.GL import (
     glBegin,
     glBindTexture,
     glBlendFunc,
+    glColor4f,
     glDeleteTextures,
     glDisable,
     glEnable,
@@ -37,9 +42,11 @@ from OpenGL.GL import (
     glPopMatrix,
     glPushMatrix,
     glTexCoord2f,
+    glTexEnvf,
     glTexImage2D,
     glTexParameteri,
     glVertex2f,
+    glViewport,
 )
 
 from src.camera.free_roam_camera import FreeRoamCamera
@@ -50,6 +57,48 @@ from src.simulation.asteroid_belt import AsteroidField
 from src.simulation.exotic_visitors import ExoticFleet
 from src.simulation.meteors import MeteorSwarm
 from src.simulation.solar_system import SolarSystem
+
+
+def _fit_inside_cap(width: int, height: int) -> tuple[int, int]:
+    """Kecilkan secara seragam jika lebih besar dari WINDOW_INIT_MAX_* (pertahankan aspect)."""
+    cap_w = int(config.WINDOW_INIT_MAX_WIDTH)
+    cap_h = int(config.WINDOW_INIT_MAX_HEIGHT)
+    if cap_w <= 0 or cap_h <= 0:
+        return width, height
+    if width <= cap_w and height <= cap_h:
+        return width, height
+    scale = min(cap_w / float(width), cap_h / float(height))
+    fit_w = max(640, int(width * scale))
+    fit_h = max(480, int(height * scale))
+    return fit_w, fit_h
+
+
+def _initial_window_size() -> tuple[int, int]:
+    """Ukuran jendela pertama: resolusi desktop utama (Pygame) atau fallback config."""
+    fw, fh = int(config.WINDOW_WIDTH), int(config.WINDOW_HEIGHT)
+    min_w, min_h = 640, 480
+    if not config.WINDOW_MATCH_DESKTOP:
+        return max(min_w, fw), max(min_h, fh)
+    info = pygame.display.Info()
+    cw, ch = int(info.current_w), int(info.current_h)
+    if cw > 0 and ch > 0:
+        uw, uh = max(min_w, cw), max(min_h, ch)
+        return _fit_inside_cap(uw, uh)
+    return max(min_w, fw), max(min_h, fh)
+
+
+def _display_pixels() -> tuple[int, int]:
+    """Lebar/tinggi buffer tampilan untuk GL (HiDPI bisa beda dari logical size)."""
+    try:
+        ww, wh = pygame.display.get_window_size()
+        if ww > 0 and wh > 0:
+            return ww, wh
+    except (AttributeError, TypeError, pygame.error):
+        pass
+    surf = pygame.display.get_surface()
+    if surf is not None:
+        return surf.get_width(), surf.get_height()
+    return int(config.WINDOW_WIDTH), int(config.WINDOW_HEIGHT)
 
 
 def _texture_id(tex) -> int:
@@ -106,6 +155,13 @@ def _draw_hud_overlay(
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
     glDisable(GL_DEPTH_TEST)
     glDisable(GL_LIGHTING)
+    glDisable(GL_COLOR_MATERIAL)
+
+    # draw_scene memakai GL_MODULATE; tanpa REPLACE + warna putih HUD jadi kusam / seolah «terpotong».
+    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE)
+    glColor4f(1.0, 1.0, 1.0, 1.0)
+
+    glViewport(0, 0, int(screen_width), int(screen_height))
 
     glMatrixMode(GL_PROJECTION)
     glPushMatrix()
@@ -140,6 +196,7 @@ def _draw_hud_overlay(
 
     glDisable(GL_TEXTURE_2D)
     glEnable(GL_DEPTH_TEST)
+    glEnable(GL_COLOR_MATERIAL)
 
 
 def run_app() -> None:
@@ -147,7 +204,8 @@ def run_app() -> None:
     pygame.display.set_caption(config.WINDOW_TITLE)
 
     flags = pygame.OPENGL | pygame.DOUBLEBUF | pygame.RESIZABLE
-    pygame.display.set_mode((config.WINDOW_WIDTH, config.WINDOW_HEIGHT), flags)
+    init_w, init_h = _initial_window_size()
+    pygame.display.set_mode((init_w, init_h), flags)
 
     pygame.mouse.set_visible(False)
     pygame.event.set_grab(True)
@@ -159,7 +217,9 @@ def run_app() -> None:
     meteor_swarm = MeteorSwarm(seed=904)
     exotic_fleet = ExoticFleet()
     inputs = InputHandler(mouse_grabbed=True, video_flags=flags)
-    renderer = Renderer()
+
+    aw, ah = _display_pixels()
+    renderer = Renderer(width=aw, height=ah)
 
     pygame.font.init()
     label_font = pygame.font.SysFont("dejavusans", config.LABEL_FONT_PT, bold=True)
@@ -186,7 +246,7 @@ def run_app() -> None:
             meteor_swarm.update(dt)
             exotic_fleet.update(dt)
 
-            w, h = pygame.display.get_surface().get_size()
+            w, h = _display_pixels()
             renderer.resize(w, h)
 
             renderer.frame_begin(camera)

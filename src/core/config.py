@@ -1,9 +1,16 @@
 """Konfigurasi global aplikasi."""
 
-# Jendela
-WINDOW_WIDTH = 1280
-WINDOW_HEIGHT = 720
+# Jendela — fallback saat tidak bisa membaca ukuran desktop atau WINDOW_MATCH_DESKTOP=False
+WINDOW_WIDTH = 1920
+WINDOW_HEIGHT = 1080
 WINDOW_TITLE = "Simulasi Astronomi 3D — navigasi free-roam"
+# True: pakai pygame.display.Info() current_w/h monitor utama saat startup
+WINDOW_MATCH_DESKTOP = True
+# Batas ukuran pertama jika WINDOW_MATCH_DESKTOP (skala seragam, pertahankan rasio).
+# Proses "killed" tanpa traceback di Linux sering dari OOM; layar native 4K+ memperbesar framebuffer GL.
+# (0, 0) = tanpa batas.
+WINDOW_INIT_MAX_WIDTH = 1920
+WINDOW_INIT_MAX_HEIGHT = 1080
 
 # Warna background (RGBA 0–1)
 CLEAR_COLOR = (0.02, 0.02, 0.06, 1.0)
@@ -38,7 +45,22 @@ ASSETS_TEXTURES_SUBDIR = "assets/textures"
 # Tekstur / label (matikan di mesin lemah)
 USE_PLANET_TEXTURES = True
 USE_LABELS = True
-TEXTURE_MAX_EDGE = 512
+TEXTURE_MAX_EDGE = 512  # boleh dinaikkan jika VGA kuat untuk tekstur file/procedural lebih tajam
+
+# Matahari — lapisan halo (skala pengali SUN_RADIUS dunia, kemudian alpha + warna additive)
+SUN_HALO_LAYER_SCALES = (1.1, 1.24)
+SUN_HALO_LAYER_ALPHAS = (0.28, 0.14)
+SUN_HALO_LAYER_RGB = ((1.0, 0.78, 0.38), (1.0, 0.48, 0.12))
+
+# Saturnus — cincin planar (radii pengali dari body_radius planet tersebut)
+SATURN_RING_SEGMENT_COUNT = 112
+SATURN_RING_POLYGON_OFFSET = (-1.2, -3.5)
+SATURN_RING_BANDS = (
+    # (rel_inner, rel_outer, rgba 0–1)
+    (1.28, 1.92, (0.93, 0.86, 0.68, 0.52)),
+    (1.98, 2.38, (0.84, 0.76, 0.58, 0.38)),
+    (2.48, 2.85, (0.68, 0.58, 0.44, 0.26)),
+)
 
 # Sabuk asteroid
 ASTEROID_COUNT = 140

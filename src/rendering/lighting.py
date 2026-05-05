@@ -12,12 +12,14 @@ from OpenGL.GL import (
     GL_LIGHT_MODEL_LOCAL_VIEWER,
     GL_LIGHTING,
     GL_POSITION,
+    GL_SHININESS,
     GL_SPECULAR,
     glColorMaterial,
     glEnable,
     glLightModelf,
     glLightModelfv,
     glLightfv,
+    glMaterialf,
     glMaterialfv,
 )
 
@@ -48,3 +50,28 @@ def reset_material_white() -> None:
     spec = [0.15, 0.15, 0.18, 1.0]
     glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse)
     glMaterialfv(GL_FRONT, GL_SPECULAR, spec)
+    glMaterialf(GL_FRONT, GL_SHININESS, 32.0)
+
+
+def apply_planet_material(texture_key: str) -> None:
+    """Specular / shininess bergantung kelas permukaan (batuan vs es vs gas)."""
+    k = texture_key.lower()
+    diffuse = [0.92, 0.92, 0.95, 1.0]
+    if k in ("mercury", "mars", "moon"):
+        spec = [0.065, 0.065, 0.068, 1.0]
+        shin = 14.0
+    elif k in ("venus", "earth"):
+        spec = [0.09, 0.09, 0.096, 1.0]
+        shin = 26.0
+    elif k in ("uranus", "neptune"):
+        spec = [0.34, 0.36, 0.42, 1.0]
+        shin = 88.0
+    elif k in ("jupiter", "saturn"):
+        spec = [0.05, 0.048, 0.046, 1.0]
+        shin = 18.0
+    else:
+        spec = [0.1, 0.11, 0.12, 1.0]
+        shin = 22.0
+    glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse)
+    glMaterialfv(GL_FRONT, GL_SPECULAR, spec)
+    glMaterialf(GL_FRONT, GL_SHININESS, shin)
